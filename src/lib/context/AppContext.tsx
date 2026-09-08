@@ -56,6 +56,7 @@ interface AppContextType {
   setLatestAlarmTriggered: (alert: BudgetAlert | null) => void;
 
   refreshData: () => Promise<void>;
+  seedStudentData?: () => Promise<void>; // Ditambahkan ke interface
 
   addTransaction: (tx: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => Promise<{ success: boolean; alert?: BudgetAlert | null }>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<boolean>;
@@ -218,6 +219,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoading(false);
     }
   }, [user, selectedMonth, selectedYear]);
+
+  // Fungsi dummy/seeding jika dipanggil oleh komponen UI
+  const seedStudentData = useCallback(async () => {
+    await refreshData();
+  }, [refreshData]);
 
   // Muat ulang data secara otomatis ketika ID user, bulan, atau tahun berubah
   useEffect(() => {
@@ -554,6 +560,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsQuickAddOpen,
         setLatestAlarmTriggered,
         refreshData,
+        seedStudentData,
         addTransaction,
         updateTransaction,
         deleteTransaction,
