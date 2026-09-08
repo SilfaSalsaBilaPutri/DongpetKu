@@ -56,7 +56,7 @@ interface AppContextType {
   setLatestAlarmTriggered: (alert: BudgetAlert | null) => void;
 
   refreshData: () => Promise<void>;
-  seedStudentData?: () => Promise<void>; // Ditambahkan ke interface
+  seedStudentData: () => Promise<void>; // Dibuat wajib (non-optional) agar tidak undefined
 
   addTransaction: (tx: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => Promise<{ success: boolean; alert?: BudgetAlert | null }>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<boolean>;
@@ -88,7 +88,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear());
 
-  // Set default state awal user ke null agar tidak menggunakan data dummy "Aulia Rahma"
+  // Set default state awal user ke null
   const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -102,7 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(true);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
-  // Inisialisasi Auth & Sesi Pengguna murni dari Supabase / LocalStorage pengguna
+  // Inisialisasi Auth & Sesi Pengguna
   useEffect(() => {
     const initSession = async () => {
       try {
@@ -125,7 +125,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
-        // 2. Cek user yang tersimpan di localStorage (jika sesi auth tersimpan)
+        // 2. Cek user yang tersimpan di localStorage
         const savedJson = localStorage.getItem(USER_STORAGE_KEY);
         if (savedJson) {
           const parsed = JSON.parse(savedJson) as User;
@@ -134,7 +134,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
-        // Jika tidak ada user login, pastikan user bernilai null (bukan data dummy)
         setUser(null);
       } catch (err) {
         console.warn('Session init error:', err);
@@ -174,7 +173,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Ambil Data Riil dari Supabase berdasarkan user ID yang sedang aktif
+  // Ambil Data Riil dari Supabase berdasarkan user ID
   const refreshData = useCallback(async () => {
     if (!user || !user.id) {
       setTransactions([]);
@@ -198,7 +197,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSupabaseError(null);
       }
 
-      // Ambil seluruh data dari database
       const [cats, txs, bdgs, alerts, recs] = await Promise.all([
         getCategories(user.id),
         getTransactions(user.id),
@@ -220,17 +218,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user, selectedMonth, selectedYear]);
 
-  // Fungsi dummy/seeding jika dipanggil oleh komponen UI
+  // Fungsi seeding / data awal
   const seedStudentData = useCallback(async () => {
     await refreshData();
   }, [refreshData]);
 
-  // Muat ulang data secara otomatis ketika ID user, bulan, atau tahun berubah
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
-  // Shortcut Keyboard: Tekan 'N' atau 'Ctrl+K' / 'Cmd+K' untuk Tambah Cepat
+  // Shortcut Keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -256,7 +253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
   }, [transactions, categories]);
 
-  // Hitung status budget berdasarkan transaksi riil
+  // Hitung status budget
   const budgets = useMemo(() => {
     return rawBudgets.map(b => {
       const cat = b.category || categories.find(c => c.id === b.category_id);
@@ -265,7 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [rawBudgets, categories, enrichedTransactions]);
 
-  // Ringkasan Keuangan Bulanan dari transaksi Supabase
+  // Ringkasan Keuangan Bulanan
   const summary: MonthlySummary = useMemo(() => {
     const monthTransactions = enrichedTransactions.filter(tx => {
       const d = new Date(tx.transaction_date);
@@ -298,7 +295,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [enrichedTransactions, budgets, budgetAlerts, selectedMonth, selectedYear]);
 
-  // Tambah Transaksi langsung ke Supabase
+  // Tambah Transaksi
   const addTransaction = useCallback(
     async (txData: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
       if (!user) throw new Error('User tidak ditemukan / belum terautentikasi');
@@ -320,11 +317,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (created) {
           setTransactions(prev => [created, ...prev]);
         } else {
-          // Fallback refresh jika Supabase mengembalikan data yang tidak valid
           await refreshData();
         }
 
-        // Cek evaluasi budget alarm jika transaksi berupa pengeluaran
         if (txData.transaction_type === 'expense') {
           const txDate = new Date(txData.transaction_date);
           const txMonth = txDate.getMonth() + 1;
@@ -372,7 +367,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [user, rawBudgets, transactions, categories, refreshData]
   );
 
-  // Update Transaksi ke Supabase
   const updateTransaction = useCallback(async (id: string, updatedFields: Partial<Transaction>) => {
     setTransactions(prev =>
       prev.map(tx => (tx.id === id ? { ...tx, ...updatedFields, updated_at: new Date().toISOString() } : tx))
@@ -381,14 +375,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   }, []);
 
-  // Hapus Transaksi dari Supabase
   const deleteTransaction = useCallback(async (id: string) => {
     setTransactions(prev => prev.filter(tx => tx.id !== id));
     await deleteTxFromDb(id);
     return true;
   }, []);
 
-  // Simpan Budget ke Supabase
   const saveBudget = useCallback(
     async (categoryId: string, amount: number, month?: number, year?: number) => {
       if (!user) return false;
@@ -423,14 +415,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [user, selectedMonth, selectedYear]
   );
 
-  // Hapus Budget dari Supabase
   const deleteBudget = useCallback(async (budgetId: string) => {
     setRawBudgets(prev => prev.filter(b => b.id !== budgetId));
     await deleteBudgetFromDb(budgetId);
     return true;
   }, []);
 
-  // Tambah Kategori Baru ke Supabase
   const addCategory = useCallback(
     async (catData: Omit<Category, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'is_preset'>) => {
       if (!user) return null;
@@ -450,7 +440,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [user]
   );
 
-  // Transaksi Rutin
   const addRecurringTransaction = useCallback(
     async (recData: Omit<RecurringTransaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
       if (!user) return false;

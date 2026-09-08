@@ -9,7 +9,7 @@ import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { RecurringAlertCard } from '@/components/dashboard/RecurringAlertCard';
 import { useApp } from '@/lib/context/AppContext';
 import { formatMonthYear } from '@/lib/utils/date';
-import { Zap, Database, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { Zap, Database, Sparkles, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -66,7 +66,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
-              onClick={() => seedStudentData()}
+              onClick={() => seedStudentData?.()}
               className="py-1.5 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-neon-blue transition flex items-center gap-1.5 self-start sm:self-auto"
             >
               <RefreshCw className="w-3.5 h-3.5" />
