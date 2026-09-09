@@ -89,16 +89,30 @@ export async function getUserProfile(userId: string): Promise<User | null> {
  */
 export async function getCategories(userId?: string | null): Promise<Category[]> {
   try {
-    let query = supabase.from('categories').select('*').order('created_at', { ascending: true });
-    
+    let query = supabase.from('categories').select('*');
+
+    // Perbaikan kondisi OR agar dipastikan membaca kategori preset (is_preset = true)
     if (userId) {
-      query = query.or(`is_preset.eq.true,user_id.eq.${userId},user_id.is.null`);
+      query = query.or(`is_preset.eq.true,user_id.eq.${userId}`);
     } else {
-      query = query.or('is_preset.eq.true,user_id.is.null');
+      query = query.eq('is_preset', true);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('created_at', { ascending: true });
+
     if (error) throw error;
+
+    // Fallback: Jika pengguna/penguji tidak memiliki custom category, ambil preset bawaan
+    if ((!data || data.length === 0) && userId) {
+      const { data: presetData } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_preset', true)
+        .order('created_at', { ascending: true });
+
+      return (presetData as Category[]) || [];
+    }
+
     return (data as Category[]) || [];
   } catch (err) {
     console.error('Error fetching categories from Supabase:', err);

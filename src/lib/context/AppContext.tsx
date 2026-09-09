@@ -56,7 +56,7 @@ interface AppContextType {
   setLatestAlarmTriggered: (alert: BudgetAlert | null) => void;
 
   refreshData: () => Promise<void>;
-  seedStudentData: () => Promise<void>; // Dibuat wajib (non-optional) agar tidak undefined
+  seedStudentData: () => Promise<void>;
 
   addTransaction: (tx: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => Promise<{ success: boolean; alert?: BudgetAlert | null }>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<boolean>;
@@ -88,7 +88,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear());
 
-  // Set default state awal user ke null
   const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -102,16 +101,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(true);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
-  // Inisialisasi Auth & Sesi Pengguna
+  // Inisialisasi Auth & Listener Sesi Pengguna
   useEffect(() => {
+    let isMounted = true;
+
     const initSession = async () => {
       try {
         setIsLoading(true);
 
-        // 1. Cek Sesi Auth Supabase Utama
         const { data: { session } } = await supabase.auth.getSession();
 
-        if (session?.user) {
+        if (session?.user && isMounted) {
           const authUser: User = {
             id: session.user.id,
             name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Mahasiswa',
@@ -125,27 +125,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
-        // 2. Cek user yang tersimpan di localStorage
         const savedJson = localStorage.getItem(USER_STORAGE_KEY);
-        if (savedJson) {
+        if (savedJson && isMounted) {
           const parsed = JSON.parse(savedJson) as User;
           const verified = await ensureUserInDb(parsed);
           setUser(verified || parsed);
           return;
         }
 
-        setUser(null);
+        if (isMounted) setUser(null);
       } catch (err) {
         console.warn('Session init error:', err);
-        setUser(null);
+        if (isMounted) setUser(null);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     initSession();
 
-    // Supabase auth state listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const authUser: User = {
@@ -169,11 +167,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
   }, []);
 
-  // Ambil Data Riil dari Supabase berdasarkan user ID
+  // Ambil Data dari Supabase berdasarkan user ID
   const refreshData = useCallback(async () => {
     if (!user || !user.id) {
       setTransactions([]);
@@ -218,7 +217,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user, selectedMonth, selectedYear]);
 
-  // Fungsi seeding / data awal
   const seedStudentData = useCallback(async () => {
     await refreshData();
   }, [refreshData]);
@@ -262,9 +260,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [rawBudgets, categories, enrichedTransactions]);
 
-  // Ringkasan Keuangan Bulanan
+  // Ringkasan Keuangan Bulanan (Aman terhadap Timezone offset)
   const summary: MonthlySummary = useMemo(() => {
     const monthTransactions = enrichedTransactions.filter(tx => {
+      const parts = tx.transaction_date.split('T')[0].split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        return month === selectedMonth && year === selectedYear;
+      }
       const d = new Date(tx.transaction_date);
       return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
     });
@@ -315,15 +319,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         if (created) {
-          setTransactions(prev => [created, ...prev]);
+          const categoryObj = categories.find(c => c.id === created.category_id);
+          const fullCreatedTx = { ...created, category: categoryObj };
+          setTransactions(prev => [fullCreatedTx, ...prev]);
         } else {
           await refreshData();
         }
 
         if (txData.transaction_type === 'expense') {
-          const txDate = new Date(txData.transaction_date);
-          const txMonth = txDate.getMonth() + 1;
-          const txYear = txDate.getFullYear();
+          const parts = txData.transaction_date.split('T')[0].split('-');
+          const txYear = parseInt(parts[0], 10);
+          const txMonth = parseInt(parts[1], 10);
 
           const activeBudget = rawBudgets.find(
             b => b.category_id === txData.category_id && b.month === txMonth && b.year === txYear
@@ -331,13 +337,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           if (activeBudget && activeBudget.amount > 0) {
             const allCategoryExpenses = transactions
-              .filter(
-                t =>
+              .filter(t => {
+                const tParts = t.transaction_date.split('T')[0].split('-');
+                return (
                   t.transaction_type === 'expense' &&
                   t.category_id === txData.category_id &&
-                  new Date(t.transaction_date).getMonth() + 1 === txMonth &&
-                  new Date(t.transaction_date).getFullYear() === txYear
-              )
+                  parseInt(tParts[1], 10) === txMonth &&
+                  parseInt(tParts[0], 10) === txYear
+                );
+              })
               .reduce((sum, t) => sum + Number(t.amount), 0) + Number(txData.amount);
 
             const alertObj = evaluateBudgetAlert(activeBudget, allCategoryExpenses, user.id);
@@ -476,24 +484,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   }, []);
 
+  // Memproses transaksi berulang secara paralel
   const processRecurringTransactions = useCallback(async () => {
     const activeRecurring = recurringTransactions.filter(r => r.is_active);
-    let count = 0;
     const today = new Date().toISOString().split('T')[0];
 
-    for (const rec of activeRecurring) {
-      await addTransaction({
+    const promises = activeRecurring.map(rec =>
+      addTransaction({
         category_id: rec.category_id,
         transaction_type: rec.transaction_type,
         amount: rec.amount,
         description: `[Otomatis] ${rec.description}`,
         transaction_date: today,
         recurring_transaction_id: rec.id,
-      });
-      count++;
-    }
+      })
+    );
 
-    return count;
+    await Promise.all(promises);
+    return activeRecurring.length;
   }, [recurringTransactions, addTransaction]);
 
   const markAlertAsRead = useCallback(async (alertId: string) => {
@@ -503,11 +511,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await markAlertRead(alertId);
   }, []);
 
+  // Menandai semua alert terbaca secara paralel
   const markAllAlertsAsRead = useCallback(async () => {
+    const unread = budgetAlerts.filter(a => !a.is_read);
     setBudgetAlerts(prev => prev.map(a => ({ ...a, is_read: true })));
-    for (const a of budgetAlerts) {
-      await markAlertRead(a.id);
-    }
+    await Promise.all(unread.map(a => markAlertRead(a.id)));
   }, [budgetAlerts]);
 
   const setUserProfile = useCallback(async (profile: User) => {
