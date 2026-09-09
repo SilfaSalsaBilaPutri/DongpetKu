@@ -33,6 +33,13 @@ import {
 } from '@/lib/services/supabaseService';
 import { supabase } from '@/lib/supabase/client';
 
+export const DEMO_USER: User = {
+  id: '00000000-0000-0000-0000-000000000001',
+  name: 'Aulia Rahma',
+  email: 'aulia.rahma@student.ac.id',
+  image_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
+};
+
 interface AppContextType {
   user: User | null;
   categories: Category[];
@@ -57,6 +64,7 @@ interface AppContextType {
 
   refreshData: () => Promise<void>;
   seedStudentData: () => Promise<void>;
+  loginAsDemoUser: () => Promise<User>;
 
   addTransaction: (tx: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => Promise<{ success: boolean; alert?: BudgetAlert | null }>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<boolean>;
@@ -101,7 +109,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(true);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
-  // Inisialisasi Auth & Listener Sesi Pengguna
   useEffect(() => {
     let isMounted = true;
 
@@ -172,7 +179,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Ambil Data dari Supabase berdasarkan user ID
   const refreshData = useCallback(async () => {
     if (!user || !user.id) {
       setTransactions([]);
@@ -217,6 +223,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user, selectedMonth, selectedYear]);
 
+  const loginAsDemoUser = useCallback(async (): Promise<User> => {
+    setIsLoading(true);
+    try {
+      const savedUser = await ensureUserInDb(DEMO_USER);
+      const activeUser = savedUser || DEMO_USER;
+      setUser(activeUser);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(activeUser));
+      return activeUser;
+    } catch (err) {
+      console.error('Gagal login sebagai demo user:', err);
+      setUser(DEMO_USER);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(DEMO_USER));
+      return DEMO_USER;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const seedStudentData = useCallback(async () => {
     await refreshData();
   }, [refreshData]);
@@ -225,7 +249,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   }, [refreshData]);
 
-  // Shortcut Keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -243,7 +266,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Relasi Kategori dengan Transaksi
   const enrichedTransactions = useMemo(() => {
     return transactions.map(tx => {
       const cat = tx.category || categories.find(c => c.id === tx.category_id);
@@ -251,7 +273,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
   }, [transactions, categories]);
 
-  // Hitung status budget
   const budgets = useMemo(() => {
     return rawBudgets.map(b => {
       const cat = b.category || categories.find(c => c.id === b.category_id);
@@ -260,7 +281,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [rawBudgets, categories, enrichedTransactions]);
 
-  // Ringkasan Keuangan Bulanan (Aman terhadap Timezone offset)
   const summary: MonthlySummary = useMemo(() => {
     const monthTransactions = enrichedTransactions.filter(tx => {
       const parts = tx.transaction_date.split('T')[0].split('-');
@@ -299,7 +319,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [enrichedTransactions, budgets, budgetAlerts, selectedMonth, selectedYear]);
 
-  // Tambah Transaksi
   const addTransaction = useCallback(
     async (txData: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
       if (!user) throw new Error('User tidak ditemukan / belum terautentikasi');
@@ -484,7 +503,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   }, []);
 
-  // Memproses transaksi berulang secara paralel
   const processRecurringTransactions = useCallback(async () => {
     const activeRecurring = recurringTransactions.filter(r => r.is_active);
     const today = new Date().toISOString().split('T')[0];
@@ -511,7 +529,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await markAlertRead(alertId);
   }, []);
 
-  // Menandai semua alert terbaca secara paralel
   const markAllAlertsAsRead = useCallback(async () => {
     const unread = budgetAlerts.filter(a => !a.is_read);
     setBudgetAlerts(prev => prev.map(a => ({ ...a, is_read: true })));
@@ -558,6 +575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLatestAlarmTriggered,
         refreshData,
         seedStudentData,
+        loginAsDemoUser,
         addTransaction,
         updateTransaction,
         deleteTransaction,
