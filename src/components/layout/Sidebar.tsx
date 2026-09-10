@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import {
   LayoutDashboard,
@@ -12,8 +12,8 @@ import {
   Sparkles,
   Settings,
   PlusCircle,
-  HelpCircle,
   ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -27,7 +27,13 @@ const NAV_ITEMS = [
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
-  const { summary, setIsQuickAddOpen } = useApp();
+  const router = useRouter();
+  const { summary, setIsQuickAddOpen, logout } = useApp();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-[#0D1429] border-r border-surface-border min-h-[calc(100vh-4rem)] p-4 shrink-0">
@@ -44,17 +50,15 @@ export const Sidebar: React.FC = () => {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
-                isActive
+              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition ${isActive
                   ? 'bg-primary/20 text-white border border-primary/40 shadow-neon-blue'
                   : 'text-gray-300 hover:bg-surface-card hover:text-white'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3">
                 <Icon
-                  className={`w-4 h-4 ${
-                    isActive ? 'text-primary-light' : 'text-gray-400'
-                  }`}
+                  className={`w-4 h-4 ${isActive ? 'text-primary-light' : 'text-gray-400'
+                    }`}
                 />
                 <span>{item.label}</span>
               </div>
@@ -87,14 +91,22 @@ export const Sidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Footer Student Tips */}
-      <div className="mt-auto pt-4 border-t border-surface-border">
+      {/* Footer Student Tips & Logout */}
+      <div className="mt-auto pt-4 border-t border-surface-border space-y-3">
         <div className="p-3 rounded-xl bg-surface-card/60 border border-surface-border text-[11px] text-gray-400 flex items-start gap-2">
           <ShieldCheck className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <span>
             Data tersimpan aman di PostgreSQL Supabase dengan RLS aktif.
           </span>
         </div>
+
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold transition"
+        >
+          <LogOut className="w-4 h-4" />
+          Keluar / Logout
+        </button>
       </div>
     </aside>
   );

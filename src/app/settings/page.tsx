@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useApp } from '@/lib/context/AppContext';
 import { CategoryIcon } from '@/components/common/CategoryIcon';
@@ -8,6 +9,7 @@ import {
   User as UserIcon,
   Tag,
   Check,
+  LogOut,
 } from 'lucide-react';
 
 const ICON_OPTIONS = [
@@ -29,11 +31,13 @@ const ICON_OPTIONS = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const {
     user,
     categories,
     addCategory,
     setUserProfile,
+    logout,
   } = useApp();
 
   // Profile Form State
@@ -73,6 +77,11 @@ export default function SettingsPage() {
     setCatName('');
     setCatAdded(true);
     setTimeout(() => setCatAdded(false), 3000);
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
   };
 
   return (
@@ -136,6 +145,15 @@ export default function SettingsPage() {
                 ) : (
                   'Simpan Perubahan'
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-2 py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold transition"
+              >
+                <LogOut className="w-4 h-4" />
+                Keluar Akun
               </button>
             </div>
           </form>
