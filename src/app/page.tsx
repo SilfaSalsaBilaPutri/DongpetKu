@@ -1,22 +1,43 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Wallet,
   Zap,
   ShieldAlert,
-  PieChart,
   Repeat,
-  Download,
   ArrowRight,
-  CheckCircle,
   Sparkles,
-  ChevronRight,
+  Loader2,
 } from 'lucide-react';
-import { formatRupiah } from '@/lib/utils/currency';
+import { useApp } from '@/lib/context/AppContext';
+import { DEMO_STUDENT_USER, ensureUserInDb } from '@/lib/services/supabaseService';
 
 export default function LandingPage() {
+  const router = useRouter();
+  const { setUserProfile, refreshData } = useApp();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Alur login demo dibuat persis sama seperti halaman login (LoginPage)
+  const handleDemoLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+
+    try {
+      await ensureUserInDb(DEMO_STUDENT_USER);
+      await setUserProfile(DEMO_STUDENT_USER);
+      await refreshData();
+      router.push('/dashboard');
+    } catch (err) {
+      console.error('Demo login error:', err);
+      router.push('/dashboard');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0B1020] text-foreground selection:bg-primary/30 selection:text-white flex flex-col overflow-x-hidden">
       {/* Top Navbar */}
@@ -39,13 +60,20 @@ export default function LandingPage() {
             >
               Masuk
             </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-1.5 py-2 px-4 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary-hover hover:to-blue-700 text-white text-xs sm:text-sm font-bold shadow-neon-blue transition active:scale-95"
+            <button
+              onClick={handleDemoLogin}
+              disabled={isLoggingIn}
+              className="flex items-center gap-1.5 py-2 px-4 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary-hover hover:to-blue-700 text-white text-xs sm:text-sm font-bold shadow-neon-blue transition active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <span>Buka Dashboard</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+              {isLoggingIn ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <span>Buka Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       </nav>
@@ -75,13 +103,18 @@ export default function LandingPage() {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-16">
-          <Link
-            href="/dashboard"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 py-3.5 px-8 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-neon-blue transition active:scale-95"
+          <button
+            onClick={handleDemoLogin}
+            disabled={isLoggingIn}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 py-3.5 px-8 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-neon-blue transition active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            <Zap className="w-4 h-4" />
-            <span>Mulai Sekarang (Demo Gratis)</span>
-          </Link>
+            {isLoggingIn ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4" />
+            )}
+            <span>{isLoggingIn ? 'Memuat Demo Aulia...' : 'Mulai Sekarang (Demo Gratis)'}</span>
+          </button>
 
           <Link
             href="/login"
@@ -106,14 +139,12 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Box 1 */}
             <div className="p-4 rounded-xl bg-surface/60 border border-surface-border">
               <span className="text-xs text-gray-400">Total Uang Saku Bersih</span>
               <p className="text-2xl font-black text-accent mt-1">Rp 2.218.000</p>
               <p className="text-[11px] text-gray-400 mt-1">Surplus kas bulan ini</p>
             </div>
 
-            {/* Box 2 */}
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-amber-300 font-bold">Makan & Minum</span>
@@ -127,7 +158,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Box 3 */}
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-red-300 font-bold">Kopi & Nongkrong</span>
@@ -156,7 +186,6 @@ export default function LandingPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1 */}
           <div className="p-6 rounded-2xl bg-surface-card border border-surface-border hover:border-primary/40 transition">
             <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary-light flex items-center justify-center mb-4">
               <Zap className="w-5 h-5" />
@@ -167,7 +196,6 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Card 2 */}
           <div className="p-6 rounded-2xl bg-surface-card border border-surface-border hover:border-amber-500/40 transition">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
               <ShieldAlert className="w-5 h-5" />
@@ -178,7 +206,6 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Card 3 */}
           <div className="p-6 rounded-2xl bg-surface-card border border-surface-border hover:border-accent/40 transition">
             <div className="w-10 h-10 rounded-xl bg-accent/20 text-accent flex items-center justify-center mb-4">
               <Repeat className="w-5 h-5" />

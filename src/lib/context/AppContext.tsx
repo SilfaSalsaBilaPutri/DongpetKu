@@ -223,13 +223,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user, selectedMonth, selectedYear]);
 
+  // FIX: loginAsDemoUser sekarang memicu fetch data Aulia Rahma secara langsung
   const loginAsDemoUser = useCallback(async (): Promise<User> => {
     setIsLoading(true);
     try {
       const savedUser = await ensureUserInDb(DEMO_USER);
       const activeUser = savedUser || DEMO_USER;
+
       setUser(activeUser);
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(activeUser));
+
+      // Tarik langsung data Supabase Aulia Rahma
+      const [cats, txs, bdgs, alerts, recs] = await Promise.all([
+        getCategories(activeUser.id),
+        getTransactions(activeUser.id),
+        getBudgets(activeUser.id, selectedMonth, selectedYear),
+        getBudgetAlerts(activeUser.id),
+        getRecurringTransactions(activeUser.id),
+      ]);
+
+      setCategories(cats);
+      setTransactions(txs);
+      setRawBudgets(bdgs);
+      setBudgetAlerts(alerts);
+      setRecurringTransactions(recs);
+
       return activeUser;
     } catch (err) {
       console.error('Gagal login sebagai demo user:', err);
@@ -239,7 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const seedStudentData = useCallback(async () => {
     await refreshData();
